@@ -12,7 +12,11 @@ import OptionStrategyBuilder from './components/OptionStrategyBuilder'
 import OptionsAnalytics from './components/OptionsAnalytics'
 import OptionsTradingPlatform from './components/OptionsTradingPlatform'
 import InvestmentRecommendations from './components/InvestmentRecommendations'
-import { searchSymbols } from './services/api'
+import AuthModal from './components/AuthModal'
+import PremiumModal from './components/PremiumModal'
+import AlertsPanel from './components/AlertsPanel'
+import PremiumPortfolio from './components/PremiumPortfolio'
+import { searchSymbols, getAdvancedPrediction, getSubscriptionStatus } from './services/api'
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -23,8 +27,48 @@ const App = () => {
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
 
+  // Auth state
+  const [user, setUser] = useState(null)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showPremiumModal, setShowPremiumModal] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
+
+  // Check for existing auth on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user')
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser)
+      setUser(parsedUser)
+      setIsPremium(parsedUser.isPremium)
+    }
+
+    // Check URL params for payment results
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('payment-success') === 'true') {
+      // Refresh user data
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
+
+  const handleLogin = (userData) => {
+    setUser(userData)
+    setIsPremium(userData.isPremium)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    setUser(null)
+    setIsPremium(false)
+  }
+
+  const handlePremiumSuccess = () => {
+    setIsPremium(true)
+    setUser(prev => ({ ...prev, isPremium: true }))
+    localStorage.setItem('user', JSON.stringify({ ...user, isPremium: true }))
+  }
+
   const indianStocks = [
-    // Nifty 50 Stocks
     { symbol: 'RELIANCE.NS', name: 'Reliance Industries', sector: 'Conglomerate' },
     { symbol: 'TCS.NS', name: 'Tata Consultancy Services', sector: 'IT' },
     { symbol: 'INFY.NS', name: 'Infosys', sector: 'IT' },
@@ -58,7 +102,6 @@ const App = () => {
   ]
 
   const usStocks = [
-    // Tech Giants
     { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
     { symbol: 'MSFT', name: 'Microsoft Corporation', sector: 'Technology' },
     { symbol: 'GOOGL', name: 'Alphabet Inc.', sector: 'Technology' },
@@ -66,7 +109,6 @@ const App = () => {
     { symbol: 'NVDA', name: 'NVIDIA Corporation', sector: 'Technology' },
     { symbol: 'META', name: 'Meta Platforms', sector: 'Technology' },
     { symbol: 'TSLA', name: 'Tesla Inc.', sector: 'Automotive' },
-    // Finance
     { symbol: 'JPM', name: 'JPMorgan Chase', sector: 'Finance' },
     { symbol: 'V', name: 'Visa Inc.', sector: 'Finance' },
     { symbol: 'JNJ', name: 'Johnson & Johnson', sector: 'Healthcare' },
@@ -94,7 +136,6 @@ const App = () => {
 
   const stocks = market === 'india' ? indianStocks : usStocks
 
-  // Search for stocks
   const handleSearch = async (query) => {
     setSearchQuery(query)
     if (query.length < 1) {
@@ -145,6 +186,47 @@ const App = () => {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Premium Badge */}
+              {isPremium && (
+                <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-1.5 rounded-full">
+                  <span>👑</span>
+                  <span className="text-sm font-semibold">Premium</span>
+                </div>
+              )}
+
+              {/* Auth buttons */}
+              {user ? (
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <div className="text-sm font-medium">{user.name || user.email}</div>
+                    <div className="text-xs text-slate-400">{user.email}</div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Sign In
+                  </button>
+                  {!isPremium && (
+                    <button
+                      onClick={() => setShowPremiumModal(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Market Toggle */}
               <div className="flex bg-slate-700/50 rounded-xl p-1 backdrop-blur-sm">
                 <button
@@ -155,7 +237,7 @@ const App = () => {
                       : 'text-slate-300 hover:text-white hover:bg-slate-600/50'
                   }`}
                 >
-                  🇮🇳 India
+                  India
                 </button>
                 <button
                   onClick={() => { setMarket('us'); setSelectedSymbol('AAPL'); }}
@@ -165,7 +247,7 @@ const App = () => {
                       : 'text-slate-300 hover:text-white hover:bg-slate-600/50'
                   }`}
                 >
-                  🇺🇸 US
+                  US
                 </button>
               </div>
             </div>
@@ -174,7 +256,6 @@ const App = () => {
           {/* Stock Selector */}
           <div className="mt-5 flex items-center space-x-4">
             <div className="flex-1 max-w-xl relative">
-              {/* Search Input */}
               <div className="relative">
                 <input
                   type="text"
@@ -190,7 +271,6 @@ const App = () => {
                 )}
               </div>
 
-              {/* Search Results Dropdown */}
               {showSearchResults && searchResults.length > 0 && (
                 <div className="absolute z-50 w-full mt-2 bg-slate-800 border border-slate-600 rounded-xl shadow-lg max-h-80 overflow-y-auto">
                   {searchResults.map((result, idx) => (
@@ -207,7 +287,6 @@ const App = () => {
                 </div>
               )}
 
-              {/* Quick Select Dropdown */}
               <div className="mt-2">
                 <select
                   value={selectedSymbol}
@@ -236,7 +315,7 @@ const App = () => {
       {/* Navigation Tabs */}
       <nav className="bg-white/80 backdrop-blur-lg border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 overflow-x-auto">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
               { id: 'analyzer', label: 'Analyzer', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
@@ -249,12 +328,14 @@ const App = () => {
               { id: 'strategy', label: 'Strategy', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
               { id: 'analytics', label: 'Analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
               { id: 'optionspro', label: 'Options Pro', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z' },
-              { id: 'invest', label: 'Invest', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' }
+              { id: 'invest', label: 'Invest', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+              { id: 'alerts', label: 'Alerts', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
+              { id: 'premiumPortfolio', label: 'Portfolio', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-5 py-4 text-sm font-medium border-b-2 transition-all duration-200 ${
+                className={`flex items-center space-x-2 px-5 py-4 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-emerald-500 text-emerald-600 bg-emerald-50/50'
                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
@@ -264,6 +345,9 @@ const App = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} />
                 </svg>
                 <span>{tab.label}</span>
+                {(tab.id === 'alerts' || tab.id === 'premiumPortfolio') && !isPremium && (
+                  <span className="text-xs bg-amber-500 text-white px-1.5 py-0.5 rounded">PRO</span>
+                )}
               </button>
             ))}
           </div>
@@ -282,7 +366,7 @@ const App = () => {
           <StockChart symbol={selectedSymbol} />
         )}
         {activeTab === 'prediction' && (
-          <PredictionPanel symbol={selectedSymbol} />
+          <PredictionPanel symbol={selectedSymbol} isPremium={isPremium} />
         )}
         {activeTab === 'news' && (
           <NewsFeed symbol={selectedSymbol} />
@@ -308,6 +392,12 @@ const App = () => {
         {activeTab === 'invest' && (
           <InvestmentRecommendations />
         )}
+        {activeTab === 'alerts' && (
+          <AlertsPanel symbol={selectedSymbol} isPremium={isPremium} />
+        )}
+        {activeTab === 'premiumPortfolio' && (
+          <PremiumPortfolio symbol={selectedSymbol} isPremium={isPremium} stocks={stocks} />
+        )}
       </main>
 
       {/* Footer */}
@@ -329,6 +419,18 @@ const App = () => {
           </div>
         </div>
       </footer>
+
+      {/* Modals */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLogin={handleLogin}
+      />
+      <PremiumModal
+        isOpen={showPremiumModal}
+        onClose={() => setShowPremiumModal(false)}
+        onSuccess={handlePremiumSuccess}
+      />
     </div>
   )
 }

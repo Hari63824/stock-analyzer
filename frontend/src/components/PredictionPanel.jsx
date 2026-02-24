@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { getPrediction, getStrategySignals, getIndicators } from '../services/api'
+import { getPrediction, getStrategySignals, getIndicators, getAdvancedPrediction, getTechnicalReport } from '../services/api'
 
-const PredictionPanel = ({ symbol }) => {
+const PredictionPanel = ({ symbol, isPremium = false }) => {
   const [prediction, setPrediction] = useState(null)
   const [signals, setSignals] = useState(null)
   const [indicators, setIndicators] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [premiumPrediction, setPremiumPrediction] = useState(null)
+  const [loadingPremium, setLoadingPremium] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -29,6 +31,35 @@ const PredictionPanel = ({ symbol }) => {
       setError('Failed to load prediction data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPremiumPrediction = async () => {
+    if (!isPremium) return
+    setLoadingPremium(true)
+    try {
+      const data = await getAdvancedPrediction(symbol)
+      setPremiumPrediction(data)
+    } catch (err) {
+      console.error('Error fetching premium prediction:', err)
+    } finally {
+      setLoadingPremium(false)
+    }
+  }
+
+  const downloadReport = async () => {
+    try {
+      const blob = await getTechnicalReport(symbol)
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${symbol}_analysis_${new Date().toISOString().split('T')[0]}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      a.remove()
+    } catch (err) {
+      console.error('Error downloading report:', err)
     }
   }
 
@@ -55,20 +86,57 @@ const PredictionPanel = ({ symbol }) => {
 
   return (
     <div className="space-y-6">
+      {/* Premium Banner */}
+      {isPremium && (
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg p-4 text-white flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl">👑</span>
+            <div>
+              <p className="font-semibold">Premium Active</p>
+              <p className="text-sm text-white/80">Advanced AI predictions and reports available</p>
+            </div>
+          </div>
+          <div className="flex space-x-2">
+            {!premiumPrediction && (
+              <button
+                onClick={fetchPremiumPrediction}
+                disabled={loadingPremium}
+                className="px-4 py-2 bg-white text-amber-600 rounded-lg font-medium hover:bg-white/90 transition-colors"
+              >
+                {loadingPremium ? 'Loading...' : 'Get AI Prediction'}
+              </button>
+            )}
+            <button
+              onClick={downloadReport}
+              className="px-4 py-2 bg-white/20 text-white rounded-lg font-medium hover:bg-white/30 transition-colors"
+            >
+              📄 Download Report
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Prediction Card */}
-      <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg shadow-lg p-6 text-white">
+      <div className={`rounded-lg shadow-lg p-6 text-white ${
+        isPremium && premiumPrediction
+          ? 'bg-gradient-to-br from-purple-600 to-purple-800'
+          : 'bg-gradient-to-br from-blue-600 to-blue-800'
+      }`}>
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold">{symbol}</h2>
-            <p className="text-blue-200 mt-1">AI-Powered Prediction</p>
+            <p className="text-blue-200 mt-1">
+              {isPremium && premiumPrediction ? 'Advanced AI Prediction' : 'AI-Powered Prediction'}
+            </p>
           </div>
           <div className="text-right">
             <p className="text-sm text-blue-200">Signal</p>
             <p className={`text-4xl font-bold ${
-              prediction?.signal === 'BUY' ? 'text-green-300' :
-                prediction?.signal === 'SELL' ? 'text-red-300' : 'text-yellow-300'
+              (premiumPrediction?.signal || prediction?.signal) === 'BUY' ? 'text-green-300' :
+                (premiumPrediction?.signal || prediction?.signal) === 'SELL' ? 'text-red-300' :
+                  (premiumPrediction?.signal || prediction?.signal)?.includes('STRONG') ? 'text-yellow-300' : 'text-yellow-300'
             }`}>
-              {prediction?.signal || 'HOLD'}
+              {premiumPrediction?.signal || prediction?.signal || 'HOLD'}
             </p>
           </div>
         </div>
@@ -76,28 +144,53 @@ const PredictionPanel = ({ symbol }) => {
         <div className="mt-6 grid grid-cols-3 gap-4">
           <div className="bg-white/10 rounded-lg p-4">
             <p className="text-sm text-blue-200">Confidence</p>
-            <p className="text-2xl font-bold">{prediction?.confidence || 0}%</p>
+            <p className="text-2xl font-bold">{premiumPrediction?.confidence || prediction?.confidence || 0}%</p>
           </div>
           <div className="bg-white/10 rounded-lg p-4">
             <p className="text-sm text-blue-200">Bullish Signals</p>
-            <p className="text-2xl font-bold">{prediction?.bullishPercent || 0}%</p>
+            <p className="text-2xl font-bold">{premiumPrediction?.bullishPercent || prediction?.bullishPercent || 0}%</p>
           </div>
           <div className="bg-white/10 rounded-lg p-4">
             <p className="text-sm text-blue-200">Current Price</p>
-            <p className="text-2xl font-bold">${prediction?.target?.current?.toFixed(2) || '0.00'}</p>
+            <p className="text-2xl font-bold">${premiumPrediction?.currentPrice || prediction?.target?.current || '0.00'}</p>
           </div>
         </div>
 
         <div className="mt-6 flex items-center justify-between">
           <div>
             <p className="text-sm text-blue-200">Target High</p>
-            <p className="text-xl font-bold text-green-300">${prediction?.target?.high?.toFixed(2) || '0.00'}</p>
+            <p className="text-xl font-bold text-green-300">${(premiumPrediction?.recommendation?.target1 || prediction?.target?.high)?.toFixed(2) || '0.00'}</p>
           </div>
           <div>
             <p className="text-sm text-blue-200">Target Low</p>
-            <p className="text-xl font-bold text-red-300">${prediction?.target?.low?.toFixed(2) || '0.00'}</p>
+            <p className="text-xl font-bold text-red-300">${(premiumPrediction?.recommendation?.stopLoss || prediction?.target?.low)?.toFixed(2) || '0.00'}</p>
           </div>
         </div>
+
+        {/* Premium Recommendation */}
+        {premiumPrediction?.recommendation && (
+          <div className="mt-6 bg-white/10 rounded-lg p-4">
+            <p className="text-sm text-blue-200 mb-2">Trading Recommendation</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <p className="text-xs text-blue-200">Action</p>
+                <p className="font-semibold">{premiumPrediction.recommendation.action}</p>
+              </div>
+              <div>
+                <p className="text-xs text-blue-200">Entry</p>
+                <p className="font-semibold">₹{premiumPrediction.recommendation.entry?.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-blue-200">Stop Loss</p>
+                <p className="font-semibold text-red-300">₹{premiumPrediction.recommendation.stopLoss?.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-blue-200">Risk/Reward</p>
+                <p className="font-semibold">{premiumPrediction.recommendation.riskReward}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Individual Predictions */}
