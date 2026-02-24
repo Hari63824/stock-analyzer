@@ -12,11 +12,16 @@ import OptionStrategyBuilder from './components/OptionStrategyBuilder'
 import OptionsAnalytics from './components/OptionsAnalytics'
 import OptionsTradingPlatform from './components/OptionsTradingPlatform'
 import InvestmentRecommendations from './components/InvestmentRecommendations'
+import { searchSymbols } from './services/api'
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [selectedSymbol, setSelectedSymbol] = useState('RELIANCE.NS')
   const [market, setMarket] = useState('india')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
 
   const indianStocks = [
     // Nifty 50 Stocks
@@ -89,6 +94,33 @@ const App = () => {
 
   const stocks = market === 'india' ? indianStocks : usStocks
 
+  // Search for stocks
+  const handleSearch = async (query) => {
+    setSearchQuery(query)
+    if (query.length < 1) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+
+    setSearchLoading(true)
+    try {
+      const results = await searchSymbols(query)
+      setSearchResults(results)
+      setShowSearchResults(true)
+    } catch (err) {
+      console.error('Search error:', err)
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  const selectSearchResult = (symbol) => {
+    setSelectedSymbol(symbol)
+    setSearchQuery('')
+    setShowSearchResults(false)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Live Ticker */}
@@ -141,21 +173,57 @@ const App = () => {
 
           {/* Stock Selector */}
           <div className="mt-5 flex items-center space-x-4">
-            <div className="flex-1 max-w-xl">
-              <select
-                value={selectedSymbol}
-                onChange={(e) => setSelectedSymbol(e.target.value)}
-                className="w-full bg-slate-700/50 text-white border border-slate-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent backdrop-blur-sm"
-              >
-                <option value="" disabled>Select a stock</option>
-                <optgroup label={market === 'india' ? "Nifty 50 Stocks" : "US Stocks"} className="bg-slate-800">
-                  {stocks.map(stock => (
-                    <option key={stock.symbol} value={stock.symbol} className="bg-slate-800">
-                      {stock.symbol} - {stock.name} ({stock.sector})
-                    </option>
+            <div className="flex-1 max-w-xl relative">
+              {/* Search Input */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search any stock (e.g., RELIANCE, AAPL, TCS...)"
+                  className="w-full bg-slate-700/50 text-white border border-slate-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent backdrop-blur-sm"
+                />
+                {searchLoading && (
+                  <div className="absolute right-3 top-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  </div>
+                )}
+              </div>
+
+              {/* Search Results Dropdown */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div className="absolute z-50 w-full mt-2 bg-slate-800 border border-slate-600 rounded-xl shadow-lg max-h-80 overflow-y-auto">
+                  {searchResults.map((result, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => selectSearchResult(result.symbol)}
+                      className="w-full text-left px-4 py-3 hover:bg-slate-700 text-white border-b border-slate-700 last:border-0"
+                    >
+                      <div className="font-semibold">{result.symbol}</div>
+                      <div className="text-sm text-slate-400">{result.name}</div>
+                      <div className="text-xs text-slate-500">{result.exchange}</div>
+                    </button>
                   ))}
-                </optgroup>
-              </select>
+                </div>
+              )}
+
+              {/* Quick Select Dropdown */}
+              <div className="mt-2">
+                <select
+                  value={selectedSymbol}
+                  onChange={(e) => setSelectedSymbol(e.target.value)}
+                  className="w-full bg-slate-700/30 text-white border border-slate-600 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent backdrop-blur-sm text-sm"
+                >
+                  <option value="" disabled>Or quick select from popular stocks</option>
+                  <optgroup label={market === 'india' ? "Indian Stocks" : "US Stocks"} className="bg-slate-800">
+                    {stocks.map(stock => (
+                      <option key={stock.symbol} value={stock.symbol} className="bg-slate-800">
+                        {stock.symbol} - {stock.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
             </div>
             <div className="hidden md:flex items-center space-x-2 text-sm text-slate-400">
               <span className="px-3 py-1 bg-slate-700/50 rounded-full">NSE/BSE</span>

@@ -238,25 +238,156 @@ export async function getHistoricalData(symbol, period = '1y', interval = '1d') 
   }
 }
 
-// Search for symbols
+// Search for symbols - Try Yahoo Finance API first, fallback to local list
 export async function searchSymbols(query) {
-  // Return predefined list based on query
+  const q = query.toLowerCase().trim();
+  if (!q || q.length < 1) return [];
+
+  // First try Yahoo Finance search API
+  try {
+    const response = await axios.get('https://query1.finance.yahoo.com/v1/finance/search', {
+      timeout: 5000,
+      params: {
+        q: query,
+        quotesCount: 20,
+        newsCount: 0,
+        enableFuzzyQuery: false,
+        quotesQueryId: 'tss_match_phrase_query'
+      },
+      headers: {
+        'User-Agent': 'Mozilla/5.0'
+      }
+    });
+
+    if (response.data?.quotes) {
+      const results = response.data.quotes
+        .filter(item => item.quoteType === 'EQUITY' && item.symbol)
+        .slice(0, 20)
+        .map(item => ({
+          symbol: item.symbol,
+          name: item.shortname || item.longname || item.symbol,
+          exchange: item.exchange || 'UNKNOWN',
+          type: item.quoteType
+        }));
+
+      if (results.length > 0) return results;
+    }
+  } catch (error) {
+    console.log('Yahoo search failed, using local database:', error.message);
+  }
+
+  // Fallback: Extended local database
   const allSymbols = [
-    { symbol: 'RELIANCE.NS', name: 'Reliance Industries Ltd', exchange: 'NSE', type: 'EQUITY' },
-    { symbol: 'TCS.NS', name: 'Tata Consultancy Services', exchange: 'NSE', type: 'EQUITY' },
-    { symbol: 'INFY.NS', name: 'Infosys Ltd', exchange: 'NSE', type: 'EQUITY' },
-    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', exchange: 'NSE', type: 'EQUITY' },
-    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd', exchange: 'NSE', type: 'EQUITY' },
-    { symbol: 'SBIN.NS', name: 'State Bank of India', exchange: 'NSE', type: 'EQUITY' },
-    { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', type: 'EQUITY' },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.', exchange: 'NASDAQ', type: 'EQUITY' },
-    { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', type: 'EQUITY' },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.', exchange: 'NASDAQ', type: 'EQUITY' },
-    { symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', type: 'EQUITY' },
-    { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', type: 'EQUITY' }
+    // Indian NSE Stocks
+    { symbol: 'RELIANCE.NS', name: 'Reliance Industries Ltd', exchange: 'NSE' },
+    { symbol: 'TCS.NS', name: 'Tata Consultancy Services', exchange: 'NSE' },
+    { symbol: 'INFY.NS', name: 'Infosys Ltd', exchange: 'NSE' },
+    { symbol: 'HDFCBANK.NS', name: 'HDFC Bank Ltd', exchange: 'NSE' },
+    { symbol: 'ICICIBANK.NS', name: 'ICICI Bank Ltd', exchange: 'NSE' },
+    { symbol: 'SBIN.NS', name: 'State Bank of India', exchange: 'NSE' },
+    { symbol: 'BHARTIARTL.NS', name: 'Bharti Airtel Ltd', exchange: 'NSE' },
+    { symbol: 'BAJFINANCE.NS', name: 'Bajaj Finance Ltd', exchange: 'NSE' },
+    { symbol: 'HINDUNILVR.NS', name: 'Hindustan Unilever Ltd', exchange: 'NSE' },
+    { symbol: 'ITC.NS', name: 'ITC Ltd', exchange: 'NSE' },
+    { symbol: 'KOTAKBANK.NS', name: 'Kotak Mahindra Bank', exchange: 'NSE' },
+    { symbol: 'LT.NS', name: 'Larsen & Toubro Ltd', exchange: 'NSE' },
+    { symbol: 'M&M.NS', name: 'Mahindra & Mahindra Ltd', exchange: 'NSE' },
+    { symbol: 'MARUTI.NS', name: 'Maruti Suzuki India Ltd', exchange: 'NSE' },
+    { symbol: 'TITAN.NS', name: 'Titan Company Ltd', exchange: 'NSE' },
+    { symbol: 'ULTRACEMCO.NS', name: 'UltraTech Cement Ltd', exchange: 'NSE' },
+    { symbol: 'WIPRO.NS', name: 'Wipro Ltd', exchange: 'NSE' },
+    { symbol: 'AXISBANK.NS', name: 'Axis Bank Ltd', exchange: 'NSE' },
+    { symbol: 'ADANIPORTS.NS', name: 'Adani Ports & SEZ Ltd', exchange: 'NSE' },
+    { symbol: 'ASIANPAINT.NS', name: 'Asian Paints Ltd', exchange: 'NSE' },
+    { symbol: 'DRREDDY.NS', name: 'Dr. Reddy\'s Laboratories', exchange: 'NSE' },
+    { symbol: 'HCLTECH.NS', name: 'HCL Technologies Ltd', exchange: 'NSE' },
+    { symbol: 'TECHM.NS', name: 'Tech Mahindra Ltd', exchange: 'NSE' },
+    { symbol: 'SUNPHARMA.NS', name: 'Sun Pharmaceutical Ltd', exchange: 'NSE' },
+    { symbol: 'NTPC.NS', name: 'NTPC Ltd', exchange: 'NSE' },
+    { symbol: 'ONGC.NS', name: 'Oil & Natural Gas Corp', exchange: 'NSE' },
+    { symbol: 'POWERGRID.NS', name: 'Power Grid Corp of India', exchange: 'NSE' },
+    { symbol: 'TATASTEEL.NS', name: 'Tata Steel Ltd', exchange: 'NSE' },
+    { symbol: 'JSWSTEEL.NS', name: 'JSW Steel Ltd', exchange: 'NSE' },
+    { symbol: 'CIPLA.NS', name: 'Cipla Ltd', exchange: 'NSE' },
+    { symbol: 'NESTLEIND.NS', name: 'Nestle India Ltd', exchange: 'NSE' },
+    { symbol: 'HEROMOTOCO.NS', name: 'Hero MotoCorp Ltd', exchange: 'NSE' },
+    { symbol: 'BPCL.NS', name: 'Bharat Petroleum Corp', exchange: 'NSE' },
+    { symbol: 'COALINDIA.NS', name: 'Coal India Ltd', exchange: 'NSE' },
+    { symbol: 'GRASIM.NS', name: 'Grasim Industries Ltd', exchange: 'NSE' },
+    { symbol: 'ADANIENSOL.NS', name: 'Adani Energy Solutions', exchange: 'NSE' },
+    { symbol: 'ADANIGREEN.NS', name: 'Adani Green Energy Ltd', exchange: 'NSE' },
+    { symbol: 'ADANITOTALGAS.NS', name: 'Adani Total Gas Ltd', exchange: 'NSE' },
+    { symbol: 'TATAMOTORS.NS', name: 'Tata Motors Ltd', exchange: 'NSE' },
+    { symbol: 'APOLLOPHARM.NS', name: 'Apollo Pharmachem', exchange: 'NSE' },
+    { symbol: 'TRENT.NS', name: 'Trent Ltd', exchange: 'NSE' },
+    { symbol: 'TATCEMENT.NS', name: 'Tata Cement Ltd', exchange: 'NSE' },
+    { symbol: 'DIVISLAB.NS', name: 'Divi\'s Laboratories', exchange: 'NSE' },
+    { symbol: 'BRITANNIA.NS', name: 'Britannia Industries', exchange: 'NSE' },
+    { symbol: 'EICHERMOT.NS', name: 'Eicher Motors Ltd', exchange: 'NSE' },
+    { symbol: 'HAVELLS.NS', name: 'Havells India Ltd', exchange: 'NSE' },
+    { symbol: 'PIDILITIND.NS', name: 'Pidilite Industries', exchange: 'NSE' },
+    { symbol: 'SIEMENS.NS', name: 'Siemens Ltd', exchange: 'NSE' },
+    { symbol: 'BERGEPAINT.NS', name: 'Berger Paints Ltd', exchange: 'NSE' },
+    { symbol: 'GUARDIAN.NS', name: 'Guardian Lifecare', exchange: 'NSE' },
+    { symbol: 'RAMCOCEM.NS', name: 'Ramco Cements Ltd', exchange: 'NSE' },
+    { symbol: 'AMBUJACEM.NS', name: 'Ambuja Cements Ltd', exchange: 'NSE' },
+    // US Stocks
+    { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ' },
+    { symbol: 'GOOGL', name: 'Alphabet Inc.', exchange: 'NASDAQ' },
+    { symbol: 'GOOG', name: 'Alphabet Inc. Class C', exchange: 'NASDAQ' },
+    { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ' },
+    { symbol: 'AMZN', name: 'Amazon.com Inc.', exchange: 'NASDAQ' },
+    { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ' },
+    { symbol: 'META', name: 'Meta Platforms Inc.', exchange: 'NASDAQ' },
+    { symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ' },
+    { symbol: 'BRK.B', name: 'Berkshire Hathaway', exchange: 'NYSE' },
+    { symbol: 'JPM', name: 'JPMorgan Chase & Co.', exchange: 'NYSE' },
+    { symbol: 'V', name: 'Visa Inc.', exchange: 'NYSE' },
+    { symbol: 'JNJ', name: 'Johnson & Johnson', exchange: 'NYSE' },
+    { symbol: 'WMT', name: 'Walmart Inc.', exchange: 'NYSE' },
+    { symbol: 'PG', name: 'Procter & Gamble', exchange: 'NYSE' },
+    { symbol: 'MA', name: 'Mastercard Inc.', exchange: 'NYSE' },
+    { symbol: 'UNH', name: 'UnitedHealth Group', exchange: 'NYSE' },
+    { symbol: 'HD', name: 'Home Depot Inc.', exchange: 'NYSE' },
+    { symbol: 'DIS', name: 'Walt Disney Company', exchange: 'NYSE' },
+    { symbol: 'NFLX', name: 'Netflix Inc.', exchange: 'NASDAQ' },
+    { symbol: 'ADBE', name: 'Adobe Inc.', exchange: 'NASDAQ' },
+    { symbol: 'CRM', name: 'Salesforce Inc.', exchange: 'NYSE' },
+    { symbol: 'INTC', name: 'Intel Corporation', exchange: 'NASDAQ' },
+    { symbol: 'AMD', name: 'Advanced Micro Devices', exchange: 'NASDAQ' },
+    { symbol: 'CSCO', name: 'Cisco Systems Inc.', exchange: 'NASDAQ' },
+    { symbol: 'ORCL', name: 'Oracle Corporation', exchange: 'NYSE' },
+    { symbol: 'PYPL', name: 'PayPal Holdings', exchange: 'NASDAQ' },
+    { symbol: 'COST', name: 'Costco Wholesale', exchange: 'NASDAQ' },
+    { symbol: 'PEP', name: 'PepsiCo Inc.', exchange: 'NASDAQ' },
+    { symbol: 'KO', name: 'Coca-Cola Company', exchange: 'NYSE' },
+    { symbol: 'NKE', name: 'Nike Inc.', exchange: 'NYSE' },
+    { symbol: 'BA', name: 'Boeing Company', exchange: 'NYSE' },
+    { symbol: 'GS', name: 'Goldman Sachs', exchange: 'NYSE' },
+    { symbol: 'IBM', name: 'IBM Corporation', exchange: 'NYSE' },
+    { symbol: 'QCOM', name: 'Qualcomm Inc.', exchange: 'NASDAQ' },
+    { symbol: 'TXN', name: 'Texas Instruments', exchange: 'NASDAQ' },
+    { symbol: 'AVGO', name: 'Broadcom Inc.', exchange: 'NASDAQ' },
+    { symbol: 'UBER', name: 'Uber Technologies', exchange: 'NYSE' },
+    { symbol: 'ABNB', name: 'Airbnb Inc.', exchange: 'NASDAQ' },
+    { symbol: 'SNAP', name: 'Snap Inc.', exchange: 'NYSE' },
+    { symbol: 'SQ', name: 'Block Inc.', exchange: 'NYSE' },
+    { symbol: 'SHOP', name: 'Shopify Inc.', exchange: 'NYSE' },
+    { symbol: 'SPOT', name: 'Spotify Technology', exchange: 'NYSE' },
+    { symbol: 'ZM', name: 'Zoom Video Communications', exchange: 'NASDAQ' },
+    { symbol: 'DOCU', name: 'DocuSign Inc.', exchange: 'NASDAQ' },
+    { symbol: 'PLTR', name: 'Palantir Technologies', exchange: 'NYSE' },
+    { symbol: 'COIN', name: 'Coinbase Global', exchange: 'NASDAQ' },
+    { symbol: 'RBLX', name: 'Roblox Corporation', exchange: 'NYSE' },
+    { symbol: 'HOOD', name: 'Robinhood Markets', exchange: 'NASDAQ' },
+    { symbol: 'SNOW', name: 'Snowflake Inc.', exchange: 'NYSE' },
+    { symbol: 'CRWD', name: 'CrowdStrike Holdings', exchange: 'NASDAQ' },
+    { symbol: 'PANW', name: 'Palo Alto Networks', exchange: 'NASDAQ' },
+    { symbol: 'FTNT', name: 'Fortinet Inc.', exchange: 'NASDAQ' },
+    { symbol: 'MDB', name: 'MongoDB Inc.', exchange: 'NASDAQ' },
+    { symbol: 'NET', name: 'Cloudflare Inc.', exchange: 'NYSE' }
   ];
 
-  const q = query.toLowerCase();
   return allSymbols.filter(s =>
     s.symbol.toLowerCase().includes(q) ||
     s.name.toLowerCase().includes(q)
