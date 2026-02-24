@@ -12,6 +12,11 @@ function getCached(key) {
     cache.delete(key);
     return null;
   }
+  // Also check if cached data has valid price
+  if (item.data && item.data.price === 0) {
+    cache.delete(key);
+    return null;
+  }
   return item.data;
 }
 
@@ -25,17 +30,53 @@ function setCache(key, data, ttl = CACHE_TTL) {
 // Generate demo data for stocks
 const generateDemoData = (symbol, days = 365) => {
   const data = [];
-  let basePrice = symbol.includes('RELIANCE') ? 2850 :
-    symbol.includes('TCS') ? 3850 :
-      symbol.includes('INFY') ? 1450 :
-        symbol.includes('HDFC') ? 1650 :
-          symbol === 'AAPL' ? 185 :
-            symbol === 'GOOGL' ? 142 :
-              symbol === 'MSFT' ? 378 :
-                symbol === 'AMZN' ? 178 :
-                  symbol === 'TSLA' ? 248 :
-                    symbol === 'NVDA' ? 495 : 100;
+  const sym = symbol.toUpperCase().replace('.NS', '').replace('.BO', '');
 
+  // Map of common Indian and US stocks with realistic prices
+  const stockPrices = {
+    // Indian Stocks (NSE)
+    'RELIANCE': 2850, 'RELIANCE.NS': 2850,
+    'TCS': 3850, 'TCS.NS': 3850,
+    'INFY': 1450, 'INFY.NS': 1450, 'Infosys': 1450,
+    'HDFCBANK': 1650, 'HDFCBANK.NS': 1650, 'HDFC': 1650,
+    'ICICIBANK': 1350, 'ICICIBANK.NS': 1350,
+    'SBIN': 780, 'SBIN.NS': 780,
+    'BHARTIARTL': 1580, 'BHARTIARTL.NS': 1580, 'AIRTEL': 1580,
+    'BAJFINANCE': 6800, 'BAJFINANCE.NS': 6800,
+    'HINDUNILVR': 2800, 'HINDUNILVR.NS': 2800, 'HUL': 2800,
+    'ITC': 450, 'ITC.NS': 450,
+    'KOTAKBANK': 2100, 'KOTAKBANK.NS': 2100,
+    'LT': 3500, 'LT.NS': 3500,
+    'M&M': 3200, 'M&M.NS': 3200, 'MARUTI': 12000, 'MARUTI.NS': 12000,
+    'TITAN': 3800, 'TITAN.NS': 3800,
+    'ULTRACEMCO': 10500, 'ULTRACEMCO.NS': 10500,
+    'WIPRO': 580, 'WIPRO.NS': 580,
+    'AXISBANK': 1150, 'AXISBANK.NS': 1150,
+    'ADANIPORTS': 1450, 'ADANIPORTS.NS': 1450,
+    'ASIANPAINT': 2900, 'ASIANPAINT.NS': 2900,
+    'DRREDDY': 5800, 'DRREDDY.NS': 5800,
+    'HCLTECH': 1850, 'HCLTECH.NS': 1850,
+    'TECHM': 1650, 'TECHM.NS': 1650,
+    'SUNPHARMA': 1750, 'SUNPHARMA.NS': 1750,
+    'NTPC': 380, 'NTPC.NS': 380,
+    'ONGC': 280, 'ONGC.NS': 280,
+    'POWERGRID': 320, 'POWERGRID.NS': 320,
+    'TATASTEEL': 165, 'TATASTEEL.NS': 165,
+    'JSWSTEEL': 950, 'JSWSTEEL.NS': 950,
+    'CIPLA': 1450, 'CIPLA.NS': 1450,
+    // US Stocks
+    'AAPL': 185, 'GOOGL': 142, 'MSFT': 378, 'AMZN': 178,
+    'TSLA': 248, 'NVDA': 495, 'META': 480, 'JPM': 180,
+    'V': 280, 'JNJ': 160, 'WMT': 165, 'PG': 160, 'MA': 450,
+    'UNH': 520, 'HD': 350, 'DIS': 95, 'NFLX': 450, 'ADBE': 580,
+    'CRM': 280, 'INTC': 45, 'AMD': 145, 'CSCO': 50, 'ORCL': 125,
+    'PYPL': 65, 'COST': 720, 'PEP': 175, 'KO': 60, 'NKE': 105,
+    'BA': 210, 'GS': 450
+  };
+
+  let basePrice = stockPrices[sym] || stockPrices[symbol.toUpperCase()] || 100;
+
+  // Generate prices with random walk
   for (let i = days; i >= 0; i--) {
     const date = new Date();
     date.setDate(date.getDate() - i);
@@ -44,9 +85,9 @@ const generateDemoData = (symbol, days = 365) => {
 
     data.push({
       date: date.toISOString(),
-      open: basePrice - Math.random() * 5,
-      high: basePrice + Math.random() * 10,
-      low: basePrice - Math.random() * 10,
+      open: basePrice - Math.random() * (basePrice * 0.01),
+      high: basePrice + Math.random() * (basePrice * 0.02),
+      low: basePrice - Math.random() * (basePrice * 0.02),
       close: basePrice,
       volume: Math.floor(Math.random() * 50000000) + 1000000,
       adjClose: basePrice
