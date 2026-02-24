@@ -55,10 +55,17 @@ export function maPrediction(data) {
   const ema26 = calculateEMA(data, 26);
 
   const currentPrice = data[data.length - 1].close;
-  const currentSMA20 = sma20[sma20.length - 1];
-  const currentSMA50 = sma50[sma50.length - 1];
-  const currentEMA12 = ema12[ema12.length - 1];
-  const currentEMA26 = ema26[ema26.length - 1];
+
+  // Get last valid values (filter out nulls)
+  const validSMA20 = sma20.filter(v => v !== null && !isNaN(v));
+  const validSMA50 = sma50.filter(v => v !== null && !isNaN(v));
+  const validEMA12 = ema12.filter(v => v !== null && !isNaN(v));
+  const validEMA26 = ema26.filter(v => v !== null && !isNaN(v));
+
+  const currentSMA20 = validSMA20.length > 0 ? validSMA20[validSMA20.length - 1] : currentPrice;
+  const currentSMA50 = validSMA50.length > 0 ? validSMA50[validSMA50.length - 1] : currentPrice;
+  const currentEMA12 = validEMA12.length > 0 ? validEMA12[validEMA12.length - 1] : currentPrice;
+  const currentEMA26 = validEMA26.length > 0 ? validEMA26[validEMA26.length - 1] : currentPrice;
 
   // Trend analysis
   let trend = 'neutral';
@@ -99,8 +106,11 @@ export function maPrediction(data) {
 // RSI-based prediction
 export function rsiPrediction(data) {
   const rsi = calculateRSI(data);
-  const currentRSI = rsi[rsi.length - 1];
-  const prevRSI = rsi[rsi.length - 2];
+
+  // Get valid RSI values
+  const validRSI = rsi.filter(v => v !== null && !isNaN(v));
+  const currentRSI = validRSI.length > 0 ? validRSI[validRSI.length - 1] : 50;
+  const prevRSI = validRSI.length > 1 ? validRSI[validRSI.length - 2] : 50;
 
   let signal = 'neutral';
   let confidence = 0;
@@ -133,11 +143,16 @@ export function rsiPrediction(data) {
 // MACD-based prediction
 export function macdPrediction(data) {
   const macd = calculateMACD(data);
-  const macdLine = macd.macd[macd.macd.length - 1];
-  const signalLine = macd.signal[macd.signal.length - 1];
-  const hist = macd.histogram[macd.histogram.length - 1];
 
-  const prevHist = macd.histogram[macd.histogram.length - 2];
+  // Get valid values
+  const validMacd = macd.macd.filter(v => v !== null && !isNaN(v));
+  const validSignal = macd.signal.filter(v => v !== null && !isNaN(v));
+  const validHist = macd.histogram.filter(v => v !== null && !isNaN(v));
+
+  const macdLine = validMacd.length > 0 ? validMacd[validMacd.length - 1] : 0;
+  const signalLine = validSignal.length > 0 ? validSignal[validSignal.length - 1] : 0;
+  const hist = validHist.length > 0 ? validHist[validHist.length - 1] : 0;
+  const prevHist = validHist.length > 1 ? validHist[validHist.length - 2] : 0;
 
   let signal = 'neutral';
   let confidence = 0;
@@ -170,9 +185,15 @@ export function macdPrediction(data) {
 export function bollingerPrediction(data) {
   const bb = calculateBollingerBands(data);
   const currentPrice = data[data.length - 1].close;
-  const upper = bb.upper[bb.upper.length - 1];
-  const lower = bb.lower[bb.lower.length - 1];
-  const middle = bb.middle[bb.middle.length - 1];
+
+  // Get valid values
+  const validUpper = bb.upper.filter(v => v !== null && !isNaN(v));
+  const validLower = bb.lower.filter(v => v !== null && !isNaN(v));
+  const validMiddle = bb.middle.filter(v => v !== null && !isNaN(v));
+
+  const upper = validUpper.length > 0 ? validUpper[validUpper.length - 1] : currentPrice * 1.02;
+  const lower = validLower.length > 0 ? validLower[validLower.length - 1] : currentPrice * 0.98;
+  const middle = validMiddle.length > 0 ? validMiddle[validMiddle.length - 1] : currentPrice;
 
   let signal = 'neutral';
   let confidence = 0;
@@ -211,7 +232,9 @@ export function bollingerPrediction(data) {
 // Volatility-based prediction
 export function volatilityPrediction(data) {
   const atr = calculateATR(data);
-  const currentATR = atr[atr.length - 1];
+  // Get the last valid ATR value (filter out nulls)
+  const validAtrValues = atr.filter(v => v !== null && !isNaN(v));
+  const currentATR = validAtrValues.length > 0 ? validAtrValues[validAtrValues.length - 1] : data[data.length - 1].close * 0.02;
   const currentPrice = data[data.length - 1].close;
 
   const atrPercent = (currentATR / currentPrice) * 100;
@@ -340,7 +363,14 @@ export function ensemblePrediction(data, news) {
 
   // Price targets
   const currentPrice = data[data.length - 1].close;
-  const atr = predictions.volatility.atr;
+  // Get last valid ATR value (filter out nulls)
+  const atrArray = predictions.volatility.atr;
+  const validAtrValues = atrArray.filter(v => v !== null && !isNaN(v));
+  const atr = validAtrValues.length > 0 ? validAtrValues[validAtrValues.length - 1] : currentPrice * 0.02; // Fallback to 2% of price if no ATR
+
+  // Fallback targets if ATR calculation fails
+  const targetHigh = isNaN(atr) || atr === 0 ? currentPrice * 1.05 : currentPrice + atr * 2;
+  const targetLow = isNaN(atr) || atr === 0 ? currentPrice * 0.95 : currentPrice - atr * 2;
 
   return {
     type: 'ensemble',
@@ -349,8 +379,8 @@ export function ensemblePrediction(data, news) {
     bullishPercent: Math.round(bullishPercent),
     predictions,
     target: {
-      high: Math.round(currentPrice + atr * 2),
-      low: Math.round(currentPrice - atr * 2),
+      high: Math.round(targetHigh * 100) / 100,
+      low: Math.round(targetLow * 100) / 100,
       current: currentPrice
     },
     timestamp: new Date().toISOString()
