@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = 'https://stock-analyzer-api.onrender.com/api'
+const API_BASE = 'https://stock-analyzer-zfyb.onrender.com/api'
 
 // Create axios instance with defaults
 const api = axios.create({
