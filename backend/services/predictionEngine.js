@@ -314,40 +314,50 @@ export function ensemblePrediction(data, news) {
   let bearishSignals = 0;
   let totalConfidence = 0;
 
-  // Moving Average
-  if (predictions.ma.trend === 'bullish') bullishSignals += predictions.ma.confidence;
-  else if (predictions.ma.trend === 'bearish') bearishSignals += predictions.ma.confidence;
-  totalConfidence += predictions.ma.confidence;
+  // Moving Average - with null checks
+  const maTrend = predictions.ma?.trend || 'neutral';
+  const maConf = predictions.ma?.confidence || 0;
+  if (maTrend === 'bullish') bullishSignals += maConf;
+  else if (maTrend === 'bearish') bearishSignals += maConf;
+  totalConfidence += maConf;
 
-  // RSI
-  if (predictions.rsi.signal.includes('up') || predictions.rsi.signal.includes('bullish')) {
-    bullishSignals += predictions.rsi.confidence;
-  } else if (predictions.rsi.signal.includes('down') || predictions.rsi.signal.includes('bearish')) {
-    bearishSignals += predictions.rsi.confidence;
+  // RSI - with null checks
+  const rsiSignal = predictions.rsi?.signal || '';
+  const rsiConf = predictions.rsi?.confidence || 0;
+  if (rsiSignal.includes('up') || rsiSignal.includes('bullish')) {
+    bullishSignals += rsiConf;
+  } else if (rsiSignal.includes('down') || rsiSignal.includes('bearish')) {
+    bearishSignals += rsiConf;
   }
-  totalConfidence += predictions.rsi.confidence;
+  totalConfidence += rsiConf;
 
-  // MACD
-  if (predictions.macd.signal.includes('bullish')) bullishSignals += predictions.macd.confidence;
-  else if (predictions.macd.signal.includes('bearish')) bearishSignals += predictions.macd.confidence;
-  totalConfidence += predictions.macd.confidence;
+  // MACD - with null checks
+  const macdSignal = predictions.macd?.signal || '';
+  const macdConf = predictions.macd?.confidence || 0;
+  if (macdSignal.includes('bullish')) bullishSignals += macdConf;
+  else if (macdSignal.includes('bearish')) bearishSignals += macdConf;
+  totalConfidence += macdConf;
 
-  // Bollinger
-  if (predictions.bollinger.signal.includes('bounce') || predictions.bollinger.signal.includes('bullish')) {
-    bullishSignals += predictions.bollinger.confidence;
-  } else if (predictions.bollinger.signal.includes('pullback') || predictions.bollinger.signal.includes('bearish')) {
-    bearishSignals += predictions.bollinger.confidence;
+  // Bollinger - with null checks
+  const bbSignal = predictions.bollinger?.signal || '';
+  const bbConf = predictions.bollinger?.confidence || 0;
+  if (bbSignal.includes('bounce') || bbSignal.includes('bullish')) {
+    bullishSignals += bbConf;
+  } else if (bbSignal.includes('pullback') || bbSignal.includes('bearish')) {
+    bearishSignals += bbConf;
   }
-  totalConfidence += predictions.bollinger.confidence;
+  totalConfidence += bbConf;
 
-  // Sentiment (if available)
+  // Sentiment (if available) - with null checks
   if (predictions.sentiment) {
-    if (predictions.sentiment.signal.includes('positive') || predictions.sentiment.signal.includes('bullish')) {
-      bullishSignals += predictions.sentiment.confidence;
-    } else if (predictions.sentiment.signal.includes('negative') || predictions.sentiment.signal.includes('bearish')) {
-      bearishSignals += predictions.sentiment.confidence;
+    const sentSignal = predictions.sentiment.signal || '';
+    const sentConf = predictions.sentiment.confidence || 0;
+    if (sentSignal.includes('positive') || sentSignal.includes('bullish')) {
+      bullishSignals += sentConf;
+    } else if (sentSignal.includes('negative') || sentSignal.includes('bearish')) {
+      bearishSignals += sentConf;
     }
-    totalConfidence += predictions.sentiment.confidence;
+    totalConfidence += sentConf;
   }
 
   // Determine overall direction
@@ -363,14 +373,18 @@ export function ensemblePrediction(data, news) {
 
   // Price targets
   const currentPrice = data[data.length - 1].close;
-  // Get last valid ATR value (filter out nulls)
-  const atrArray = predictions.volatility.atr;
-  const validAtrValues = atrArray.filter(v => v !== null && !isNaN(v));
-  const atr = validAtrValues.length > 0 ? validAtrValues[validAtrValues.length - 1] : currentPrice * 0.02; // Fallback to 2% of price if no ATR
+  // ATR is now a single value (not array) after the fix
+  const atr = predictions.volatility.atr;
+
+  // Validate ATR and provide fallback
+  let validAtr = atr;
+  if (atr === null || atr === undefined || isNaN(atr) || atr === 0) {
+    validAtr = currentPrice * 0.02; // Fallback to 2% of price
+  }
 
   // Fallback targets if ATR calculation fails
-  const targetHigh = isNaN(atr) || atr === 0 ? currentPrice * 1.05 : currentPrice + atr * 2;
-  const targetLow = isNaN(atr) || atr === 0 ? currentPrice * 0.95 : currentPrice - atr * 2;
+  const targetHigh = currentPrice + validAtr * 2;
+  const targetLow = currentPrice - validAtr * 2;
 
   return {
     type: 'ensemble',
@@ -390,6 +404,16 @@ export function ensemblePrediction(data, news) {
 // Main prediction function
 export async function getPrediction(historicalData, symbol) {
   try {
+    // Validate input data
+    if (!historicalData || historicalData.length === 0) {
+      throw new Error('No historical data available');
+    }
+
+    const currentPrice = historicalData[historicalData.length - 1].close;
+    if (!currentPrice || currentPrice <= 0) {
+      throw new Error('Invalid price data');
+    }
+
     // Fetch news for the symbol
     const { getNews } = await import('./newsService.js');
     const news = await getNews(symbol, 10);
@@ -401,17 +425,34 @@ export async function getPrediction(historicalData, symbol) {
       symbol,
       ...prediction,
       historical: {
-        lastPrice: historicalData[historicalData.length - 1].close,
+        lastPrice: currentPrice,
         lastDate: historicalData[historicalData.length - 1].date
       }
     };
   } catch (error) {
     console.error('Error generating prediction:', error);
+
+    // Return a fallback prediction with default values
+    const currentPrice = historicalData && historicalData.length > 0
+      ? historicalData[historicalData.length - 1].close || 100
+      : 100;
+
     return {
       symbol,
       error: error.message,
-      signal: 'ERROR',
-      confidence: 0
+      signal: 'HOLD',
+      confidence: 50,
+      bullishPercent: 50,
+      predictions: {},
+      target: {
+        high: currentPrice * 1.05,
+        low: currentPrice * 0.95,
+        current: currentPrice
+      },
+      historical: {
+        lastPrice: currentPrice,
+        lastDate: new Date().toISOString()
+      }
     };
   }
 }
